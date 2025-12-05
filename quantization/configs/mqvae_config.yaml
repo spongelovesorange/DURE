@@ -1,0 +1,42 @@
+# 文件路径: /quantization/configs/mqvae_config.yaml
+
+common:
+  device: 'cuda:0'
+
+mqvae:
+  model_params:
+    # --- Encoder/Decoder ---
+    # (D_in -> 1024 -> 512 -> L*D_z)
+    hidden_sizes: [1024, 512] 
+    dropout: 0.1
+    
+    # --- MQ-VAE 核心 ---
+    # 子向量维度 (D_z)
+    latent_dim: 64
+    # 子向量数量 (L)
+    num_patches: 32 # 最终 Encoder 输出维度 = 32 * 64 = 2048
+    # 掩码比例 (丢弃 50%)
+    mask_ratio: 0.5 
+    # 码本大小 (K)
+    codebook_size: 1024
+    
+    # --- Demasker Transformer ---
+    demasker_layers: 2
+    demasker_heads: 4
+    
+    # --- 码本配置 (用于 trainer.py) ---
+    # (重要) MQ-VAE 不使用 RQ-VAE 的去重层
+    # 它生成的码本已经是稀疏的 (带 MASK 索引)
+    has_dup_layer: False
+
+  training_params:
+    epochs: 100
+    batch_size: 1024
+    lr: 0.0003
+    
+    # 损失类型: 'mse' 或 'l1'
+    loss_type: 'mse'
+    # 量化损失 (commitment loss) 的权重
+    latent_loss_weight: 0.25
+    # VQEmbedding 的 EMA 衰减率
+    vq_decay: 0.99

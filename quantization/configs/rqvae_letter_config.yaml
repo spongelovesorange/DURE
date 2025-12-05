@@ -1,0 +1,33 @@
+common:
+  device: 'cuda:0' # 'cuda:0' or 'cpu'
+  eval_interval: 50
+
+# --- LETTER RQ-VAE 模型配置 ---
+rqvae_letter:
+  # 模型架构参数
+  model_params:
+    hidden_sizes: [512, 256]
+    latent_size: 128
+    num_levels: 3         # LETTER码本层数
+    codebook_size: 256    # 每层码本的大小 (vocab_size)
+    dropout: 0.1
+  
+  # 训练过程参数
+  training_params:
+    # 基础损失权重
+    latent_loss_weight: 0.25      # commitment loss 的权重
+    
+    # LETTER特定损失权重
+    diversity_loss_weight: 0.1    # 多样性损失权重
+    alignment_loss_weight: 0.1    # 协作对齐损失权重
+    semantic_loss_weight: 0.1     # 语义正则化损失权重
+    ranking_loss_weight: 0.1      # 排序损失权重
+    
+    # 训练参数
+    batch_size: 512
+    epochs: 1000
+    lr: 0.001
+    weight_decay: 0.0
+    optimizer: "AdamW"
+    loss_type: "mse"              # 重构损失类型: "mse" 或 "l1"
+    temperature: 1.0              # 温度缩放参数

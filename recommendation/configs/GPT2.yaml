@@ -1,0 +1,25 @@
+# 檔案路徑: configs/SIMPLE_GPT.yaml
+
+# SIMPLE_GPT 模型獨有的架構參數
+model_params:
+  # max_len 來自 base.yaml，這裡可以覆蓋或不寫
+  # max_len: 20       
+
+  # GPT-2 架構參數
+  n_embd: 512       # Embedding 維度
+  n_layer: 6        # Transformer 層數
+  n_head: 8         # 注意力頭的數量
+  n_inner: 2048     # FFN 層的中間維度
+  
+  # Dropout 參數 (可選，若不寫則使用 GPT2Config 預設值)
+  resid_pdrop: 0.1
+  embd_pdrop: 0.1
+  attn_pdrop: 0.1
+  
+  # 其他 GPT-2 參數 (可選)
+  layer_norm_epsilon: 1e-5
+  initializer_range: 0.02
+
+training_params:
+  lr: 0.0001 
+  batch_size: 64

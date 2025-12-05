@@ -1,0 +1,25 @@
+common:
+  device: "cuda:0"
+  seed: 42
+  eval_interval: 50
+
+rvq:
+  model_params:
+    # 编码器/解码器结构；设为空列表则退化为单层 Linear
+    hidden_sizes: [512, 256]
+    latent_size: 128          # 量化维度（码本向量维）
+    num_levels: 3             # 残差量化的层数（生成 L 个离散码）
+    codebook_size: 256        # 每层码本大小（vocab）
+    dropout: 0.1
+    shared_codebook: false    # true=多级共享一个码本；false=每级独立码本
+    ema_decay: 0.99
+    restart_unused_codes: true
+
+  training_params:
+    beta: 0.5                 # 承诺损失权重 (loss_total = recon + beta * latent)
+    loss_type: "mse"          # 或 "l1"
+    batch_size: 512
+    epochs: 1000
+    lr: 0.001
+    weight_decay: 0.0
+    optimizer: "AdamW"

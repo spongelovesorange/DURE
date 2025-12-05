@@ -1,0 +1,22 @@
+common:
+  device: 'cuda:0' # 'cuda:0' or 'cpu'
+  eval_interval: 50
+
+# --- RQ-VAE 模型配置 ---
+rqvae:
+  # 模型架构参数
+  model_params:
+    hidden_sizes: [512, 256]
+    latent_size: 128
+    num_levels: 3         # 基础码本层数
+    codebook_size: 256  # 每层码本的大小 (vocab_size)
+    dropout: 0.1
+  
+  # 训练过程参数
+  training_params:
+    beta: 0.5            # commitment loss 的权重
+    batch_size: 512
+    epochs: 1000
+    lr: 0.0001
+    weight_decay: 0.0
+    optimizer: "AdamW"

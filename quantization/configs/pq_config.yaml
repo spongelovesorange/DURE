@@ -1,0 +1,17 @@
+common:
+  device: 'cuda:0'
+  eval_interval: 50
+
+# --- PQ 模型配置 ---
+pq:
+  model_params:
+    # 這裡的 num_levels 對應 PQ 的子空間數量 (M)
+    num_levels: 32           
+    # 每個子空間的碼本大小 (K*)，通常是 256 (對應 8 bits)
+    codebook_size: 256
+    
+    # Faiss 相關設定
+    use_gpu: False
+    gpu_id: 0
+    faiss_omp_num_threads: 4
+    has_dup_layer: false

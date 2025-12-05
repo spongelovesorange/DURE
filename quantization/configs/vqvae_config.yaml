@@ -1,0 +1,24 @@
+# configs/vqvae_config.yaml
+
+common:
+  device: 'cuda:0' # 可選: 'cuda:0' 或 'cpu'
+  eval_interval: 50 # 每 50 個 epoch 進行一次驗證
+
+# --- VQ-VAE 模型配置 (非殘差) ---
+vqvae:
+  # 模型架構參數
+  model_params:
+    hidden_sizes: [512, 256]   # 編碼器/解碼器 MLP 的隱藏層維度
+    latent_size: 128           # 隱空間的維度 (等於碼本中每個向量的維度)
+    codebook_size: 2048       # 碼本的大小 (K)
+    num_levels: 1
+    dropout: 0.1
+    commitment_cost: 0.25    # VQ-VAE 的關鍵超參，用於調節 commitment loss 的權重
+
+  # 訓練過程參數
+  training_params:
+    batch_size: 2048
+    epochs: 500
+    lr: 0.001
+    optimizer: "AdamW"
+    latent_loss_weight: 1.0  # 量化損失 (latent_loss) 在總損失中的權重

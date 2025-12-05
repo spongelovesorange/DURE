@@ -1,0 +1,22 @@
+# 檔案路徑: configs/TIGER.yaml
+
+# TIGER 模型獨有的架構參數
+model_params:
+  max_len: 20
+  d_model: 512
+  d_ff: 2048
+  d_kv: 64
+  num_layers: 6
+  num_decoder_layers: 6
+  num_heads: 8
+  dropout_rate: 0.1
+
+# ✨ 範例：覆蓋 base.yaml 中的通用參數
+# 假設 TIGER 模型使用較小的學習率效果更好
+training_params:
+  lr: 0.0001 
+  batch_size: 2048
+  # 注意：我們沒有寫 batch_size，它會自動從 base.yaml 繼承
+
+evaluation_params:
+  use_prefix_trie: false  # <--- 在这里控制！

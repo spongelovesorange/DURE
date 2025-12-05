@@ -1,0 +1,52 @@
+# 檔案路徑: configs/rkmeans_config.yaml (建議修改版)
+
+common:
+  device: 'cuda:0'
+  # eval_interval: 50 # 對於無監督 KMeans，訓練期間的 eval 意義不大，可以移除或增大
+
+rkmeans:
+  model_params:
+    # code_dim: 512 # 通常由 input_size 參數傳入，無需在此指定
+    num_levels: 3            # 層數 L
+    codebook_size: 256       # 每層中心點數量 K
+    
+    # ✅ 距離度量：根據您的 embedding 類型選擇，cosine 通常更適合語義 embedding
+    distance: "cosine"       
+    
+    # ✅【關鍵】禁用殘差歸一化，保留原始向量信息
+    normalize_residuals: false 
+    
+    # 逐層訓練 (保持 True 通常更容易收斂)
+    train_layer_wise: true   
+    
+    # KMeans++ 初始化時使用的緩衝大小
+    init_buffer_size: 4096   # 可以適當增大
+
+    # track_residuals: false # 通常僅用於 debug，可以移除
+
+  training_params:
+    # ✅ 更新模式：強制使用 EMA
+    update_mode: "ema"  
+    # mb_lr: 0.5        # EMA 模式下此參數無效，可以移除
+    ema_decay: 0.99      # EMA 衰減率，0.99 是常見的穩定值
+
+    # ✅ 每層訓練步數：建議增加，確保收斂
+    level_train_steps: 1000 
+
+    # 空簇重置
+    reseed_empty: true
+    reseed_threshold: 1e-5 # 將計數小於此值的視為空簇 (新參數)
+
+    # ❌ Usage 正則化：對於無監督 KMeans 通常不直接優化，建議移除
+    # usage_reg: true
+    # usage_reg_weights: [0.005, 0.02, 0.04]
+    # usage_reg_weight: 0.01
+
+    # Trainer 使用的參數
+    batch_size: 1024       # 可以根據您的 GPU 記憶體調整
+    epochs: 300             # 對於逐層 KMeans，總 epochs 可以不用太多
+    
+    # ❌ 下面這些參數對 RKMeans 無效，因為它不使用標準優化器
+    # lr: 0.0                  
+    # weight_decay: 0.0
+    # optimizer: "AdamW"
