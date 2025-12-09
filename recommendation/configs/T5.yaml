@@ -1,6 +1,6 @@
 model_params:
   # 指向本地离线 T5-small 权重目录（用户已提供）
-  model_name_or_path: "/data/GenRec-Factory-QIU/ckpt/pretrained/t5-small"
+  model_name_or_path: "/data/DURE/ckpt/pretrained/t5-small"
   grad_checkpoint: false
 
 training_params:

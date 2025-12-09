@@ -143,6 +143,12 @@ class GPT2(AbstractModel):
         generated_part = preds[:, input_ids.shape[1]:]
         preds_reshaped = generated_part.view(batch_size, beam_size, -1)
         
+        # DEBUG: Print for first batch if it's Forget Set (small batch)
+        if batch_size <= 5:
+            print(f"DEBUG: Batch size {batch_size}, generated shape {preds_reshaped.shape}")
+            print(f"Labels[0]: {labels[0].tolist()}")
+            print(f"Preds[0][0]: {preds_reshaped[0][0].tolist()}")
+        
         # 3. 计算命中 (不变)
         pos_index = self._calculate_pos_index(preds_reshaped, labels, maxk=beam_size)
         # pos_index 不需要移动到 device，因为它是在 CPU 上计算并用于后续 CPU 计算的

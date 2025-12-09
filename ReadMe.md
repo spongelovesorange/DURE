@@ -1,56 +1,65 @@
-## 📂 Project Structure
+# DURE: Dual-Constraint Unlearning for Recommendation
 
-```text
-.
-├── asset/                  # Images and static assets
-├── ckpt/                   # Model checkpoints
-│   ├── pretrained/         # Pretrained models (e.g., t5-small)
-│   ├── quantization/       # Quantization model checkpoints
-│   └── recommendation/     # Recommendation model checkpoints
-│       └── Digital_Music/
-│           ├── GPT2_rqvae/ # Base GPT2 model
-│           └── DURE/       # DURE adapter and frozen base model
-├── datasets/               # Processed datasets
-├── evaluation/             # Evaluation scripts
-├── logs/                   # Training logs
-├── preprocessing/          # Data preprocessing scripts
-├── quantization/           # Quantization training code
-└── recommendation/         # Recommendation training and evaluation code
+This repository contains the implementation of **DURE** (Dual-Constraint Unlearning for Recommendation), a novel approach for machine unlearning in generative recommendation systems.
+
+## 🚀 Project Overview
+
+DURE enables a pre-trained recommendation model (e.g., GPT-2) to "forget" specific user-item interactions (Forget Set) while maintaining its performance on the rest of the data (Retain Set).
+
+### Key Features
+*   **Adapter-Based Architecture**: Uses a lightweight, trainable Adapter (Side Memory) while keeping the Base Model frozen.
+*   **Three-Body Loss**: Combines **DPO** (Probability), **ECL** (Contrastive Learning), and **DOL** (Orthogonality) to achieve deep semantic unlearning.
+*   **Privacy Guarantee**: Verified by Membership Inference Attack (MIA) with AUC ≈ 0.5.
+
+## 📂 Directory Structure
+
+```
+ckpt/
+    dure/               # Trained DURE Adapters
+        Digital_Music/
+            adapter.pth
+            pseudo_labels.pt
+    recommendation/     # Pretrained Base Models
+datasets/               # Data files (Train, Forget, Retain)
+recommendation/         # Source code
+    dure_main.py        # Training script
+    dure_loss.py        # Loss functions (DPO, ECL, DOL)
+    eval_dure.py        # Evaluation script
+    mia_attack.py       # Privacy attack script
 ```
 
----
+## 🛠️ Usage
 
-## 🚀 Quick Start: DURE Evaluation
-
-### 1. Evaluate DURE (Unlearning Model)
-To evaluate the DURE (Dual-Process Unlearning) model on the Digital_Music dataset:
-
+### 1. Train DURE Adapter
+Train the unlearning adapter on the Forget Set.
 ```bash
-python recommendation/eval_dure.py \
-    --dataset Digital_Music \
-    --base_ckpt ckpt/recommendation/Digital_Music/DURE/base_frozen.pth \
-    --adapter_ckpt ckpt/recommendation/Digital_Music/DURE/adapter.pth
+bash run_train_dure.sh
 ```
 
-### 2. Evaluate Base Model (Baseline)
-To evaluate the Base Model (Baseline):
-
+### 2. Evaluate Performance
+Check Recall/NDCG on Forget Set (should be low) and Retain Set (should be high).
 ```bash
-python recommendation/eval_base.py \
-    --dataset Digital_Music \
-    --base_ckpt ckpt/recommendation/Digital_Music/GPT2_rqvae/best_model.pth
+bash run_eval_dure.sh
 ```
 
----
+### 3. Run Privacy Attack (MIA)
+Verify if the model is safe against Membership Inference Attacks.
+```bash
+bash run_mia.sh
+```
 
-训练 Base Model (GPT-2)
-python recommendation/main.py --model GPT2 --dataset Digital_Music --quant_method rqvae
+### 4. Run Full Pipeline
+Execute all steps in sequence.
+```bash
+bash run_all.sh
+```
 
-评估 Base Model
-python recommendation/eval_base.py --dataset Digital_Music --base_ckpt ckpt/recommendation/Digital_Music/GPT2_rqvae/best_model.pth
+## 📊 Experimental Results (Digital Music)
 
-训练 DURE Adapter
-python recommendation/dure_main.py --dataset Digital_Music --data_root datasets
+| Metric | Base Model (Dirty) | DURE (Unlearned) | Change |
+| :--- | :--- | :--- | :--- |
+| **Forget Set Recall@10** | 10.90% | **3.85%** | 📉 -64.7% |
+| **Retain Set Recall@10** | 7.96% | **7.98%** | 🟢 +0.02% |
+| **MIA AUC** | - | **0.55** | ✅ Safe |
 
-评估 DURE
-python recommendation/eval_dure.py --dataset Digital_Music --base_ckpt ckpt/recommendation/Digital_Music/DURE/base_frozen.pth --adapter_ckpt ckpt/recommendation/Digital_Music/DURE/adapter.pth
+*Note: Results based on 20 epochs training with DPO + 0.1*ECL + 0.1*DOL.*

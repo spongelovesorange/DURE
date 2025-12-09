@@ -60,16 +60,19 @@ class DUREDataset(Dataset):
         return {
             'input_ids': torch.tensor(input_ids, dtype=torch.long),
             'labels_lose': torch.tensor(labels_lose, dtype=torch.long),
-            'dirty_item_id': dirty_item # For router or logging
+            'dirty_item_id': dirty_item, # For router or logging
+            'user_id': row['user'] # Pass user_id for sharding
         }
 
 def collate_fn_dure(batch):
     input_ids = torch.stack([item['input_ids'] for item in batch])
     labels_lose = torch.stack([item['labels_lose'] for item in batch])
     dirty_item_ids = [item['dirty_item_id'] for item in batch]
+    user_ids = [item['user_id'] for item in batch]
     
     return {
         'input_ids': input_ids,
         'labels_lose': labels_lose,
-        'dirty_item_ids': dirty_item_ids
+        'dirty_item_ids': dirty_item_ids,
+        'user_ids': user_ids
     }

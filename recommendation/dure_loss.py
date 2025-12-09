@@ -78,3 +78,36 @@ def hierarchical_dpo_loss(policy_logits, ref_logits, labels_win, labels_lose, ga
         loss += gamma_weights[k] * level_loss.mean()
         
     return loss
+
+class EmbeddingContrastiveLoss(torch.nn.Module):
+    def __init__(self, margin=1.0):
+        super().__init__()
+        self.margin = margin
+        self.triplet_loss = torch.nn.TripletMarginLoss(margin=margin, p=2)
+
+    def forward(self, anchor, positive, negative):
+        """
+        anchor: (B, Hidden) - DURE final hidden state
+        positive: (B, Hidden) - Clean Item Embedding
+        negative: (B, Hidden) - Dirty Item Embedding
+        """
+        return self.triplet_loss(anchor, positive, negative)
+
+class DirtyOrthogonalityLoss(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, hidden_state, dirty_embedding):
+        """
+        Force hidden_state to be orthogonal to dirty_embedding.
+        Minimize Cosine Similarity squared.
+        """
+        # Normalize vectors
+        h_norm = F.normalize(hidden_state, p=2, dim=-1)
+        d_norm = F.normalize(dirty_embedding, p=2, dim=-1)
+        
+        # Compute cosine similarity
+        cosine = torch.sum(h_norm * d_norm, dim=-1) # (B,)
+        
+        # Minimize squared cosine (push towards 0)
+        return torch.mean(cosine ** 2)

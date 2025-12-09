@@ -4,6 +4,7 @@ import torch.nn.functional as F
 from typing import Dict, Any, Optional, List
 import logging
 from .decoder.GPT2 import GPT2
+from .decoder.T5 import T5
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +39,11 @@ class DURELayerWrapper(nn.Module):
         # 3. Dynamic routing fusion
         # Check if routing_mask is passed or set as attribute
         mask = routing_mask if routing_mask is not None else getattr(self, 'routing_mask', None)
+        
+        # DEBUG PRINT
+        if not hasattr(self, 'debug_printed'):
+             print(f"DEBUG: DURELayerWrapper mask: {mask}")
+             self.debug_printed = True
         
         if mask is not None:
             # routing_mask should be broadcastable to x
@@ -183,4 +189,72 @@ class DUREGPT2(GPT2):
                  
         return outputs
 
-    # We need to patch DURELayerWrapper to read the attribute
+class DURET5(T5):
+    def __init__(self, config: Dict[str, Any], **kwargs):
+        super().__init__(config, **kwargs)
+        
+        self.dure_config = config.get('dure_params', {})
+        self.rank = self.dure_config.get('rank', 16)
+        self.router_threshold = self.dure_config.get('router_threshold', 0.5)
+        
+        # Freeze Main Model
+        for param in self.t5.parameters():
+            param.requires_grad = False
+            
+        logger.info("Main T5 model frozen.")
+
+        # Inject Adapters into Decoder
+        # T5 structure: self.t5.decoder.block is ModuleList
+        # Each block has .layer (ModuleList)
+        # layer[2] is T5LayerFF, which has .DenseReluDense
+        
+        num_layers = len(self.t5.decoder.block)
+        inject_layers = self.dure_config.get('inject_layers', [num_layers-1, num_layers-2, num_layers-3])
+        
+        self.inject_layer_indices = set(inject_layers)
+        
+        # T5 hidden size
+        hidden_size = self.t5.config.d_model
+        
+        self.adapters = nn.ModuleList()
+        
+        for i, block in enumerate(self.t5.decoder.block):
+            if i in self.inject_layer_indices:
+                logger.info(f"Injecting DURE Adapter into T5 Decoder layer {i}")
+                adapter = DUREAdapter(hidden_size, self.rank)
+                self.adapters.append(adapter)
+                
+                # Wrap the MLP
+                # Note: T5LayerFF structure might vary, but usually it has DenseReluDense
+                if hasattr(block.layer[2], 'DenseReluDense'):
+                    original_mlp = block.layer[2].DenseReluDense
+                    block.layer[2].DenseReluDense = DURELayerWrapper(original_mlp, adapter)
+                else:
+                    logger.warning(f"Could not find DenseReluDense in T5 Decoder layer {i}")
+            else:
+                self.adapters.append(None)
+
+        # Router
+        self.router = SemanticAwareRouter(hidden_size)
+        
+    def set_routing_mask(self, mask):
+        for i, block in enumerate(self.t5.decoder.block):
+            if i in self.inject_layer_indices:
+                if hasattr(block.layer[2], 'DenseReluDense') and isinstance(block.layer[2].DenseReluDense, DURELayerWrapper):
+                    block.layer[2].DenseReluDense.routing_mask = mask
+
+    def forward(self, batch: Dict, return_router_score=False) -> Dict:
+        # Similar to DUREGPT2, we set the mask and call super().forward()
+        
+        routing_mask = batch.get('routing_mask', None)
+        
+        # If routing_mask is None, we might want to compute it using Router
+        # For now, we rely on external injection or default
+        
+        self.set_routing_mask(routing_mask)
+        
+        outputs = super().forward(batch)
+        
+        self.set_routing_mask(None)
+        
+        return outputs

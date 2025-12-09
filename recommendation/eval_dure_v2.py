@@ -15,7 +15,7 @@ from utils import load_and_process_config, setup_logging
 from dataset import GenRecDataset, item2code
 from tokenizer import get_tokenizer
 from trainer import evaluate
-from models.dure import DUREGPT2
+from models.dure import DUREGPT2, DURET5
 
 def main():
     parser = argparse.ArgumentParser(description="Evaluate DURE model")
@@ -23,66 +23,74 @@ def main():
     parser.add_argument('--base_ckpt', type=str, required=True, help='Path to pretrained base model checkpoint')
     parser.add_argument('--adapter_ckpt', type=str, required=True, help='Path to trained DURE adapter checkpoint')
     parser.add_argument('--quant_method', type=str, default='rqvae', help='Quantization method')
+    parser.add_argument('--model_type', type=str, default='GPT2', choices=['GPT2', 'T5'], help='Model type')
     
     args = parser.parse_args()
 
-    # 1. Load Config (Reuse GPT2 config but inject DURE params)
-    # We load the base config for GPT2
     config = load_and_process_config(
-        'GPT2', args.dataset, args.quant_method, embedding_modality='text'
+        args.model_type, args.dataset, args.quant_method, embedding_modality='text'
     )
     
-    # Inject DURE params (same as in dure_main.py)
     config['dure_params'] = {
         'rank': 8,
-        'inject_layers': [3, 4, 5], # Assuming 6 layers (0-5)
+        'inject_layers': [3, 4, 5], 
         'router_threshold': 0.5
     }
     
     setup_logging(config['log_path'])
-    logging.info(f"Evaluating DURE on {args.dataset}")
+    logging.info(f"Evaluating DURE on {args.dataset} with {args.model_type}")
 
-    # 2. Prepare Token Mappings
     item_to_code_map, _ = item2code(
         config['code_path'], config['vocab_sizes'], config['bases']
     )
 
-    # 3. Initialize Model
     device = torch.device(config['training_params']['device'] if torch.cuda.is_available() else 'cpu')
-    model = DUREGPT2(config)
+    
+    if args.model_type == 'GPT2':
+        model = DUREGPT2(config)
+    else:
+        model = DURET5(config)
+        
     model.to(device)
 
-    # 4. Load Weights
-    # 4.1 Load Base Model
     logging.info(f"Loading base model from {args.base_ckpt}")
     base_state = torch.load(args.base_ckpt, map_location=device)
     
-    # Fix: Adjust keys for wrapped layers
     new_base_state = {}
     inject_layers = config['dure_params']['inject_layers']
     
     for k, v in base_state.items():
         new_k = k
         parts = k.split('.')
-        if len(parts) > 4 and parts[0] == 'gpt2' and parts[1] == 'transformer' and parts[2] == 'h':
-            try:
-                layer_idx = int(parts[3])
-                if layer_idx in inject_layers and parts[4] == 'mlp':
-                    new_k = ".".join(parts[:5] + ['frozen_layer'] + parts[5:])
-            except ValueError:
-                pass
+        
+        if args.model_type == 'GPT2':
+            if len(parts) > 4 and parts[0] == 'gpt2' and parts[1] == 'transformer' and parts[2] == 'h':
+                try:
+                    layer_idx = int(parts[3])
+                    if layer_idx in inject_layers and parts[4] == 'mlp':
+                        new_k = ".".join(parts[:5] + ['frozen_layer'] + parts[5:])
+                except ValueError:
+                    pass
+        elif args.model_type == 'T5':
+            if len(parts) > 4 and parts[0] == 't5' and parts[1] == 'decoder' and parts[2] == 'block':
+                try:
+                    layer_idx = int(parts[3])
+                    if layer_idx in inject_layers:
+                        if parts[4] == 'layer' and parts[5] == '2' and parts[6] == 'DenseReluDense':
+                             new_k = ".".join(parts[:7] + ['frozen_layer'] + parts[7:])
+                except ValueError:
+                    pass
+                    
         new_base_state[new_k] = v
         
     model.load_state_dict(new_base_state, strict=False)
     
-    # 4.2 Load Adapter
     logging.info(f"Loading adapter from {args.adapter_ckpt}")
     adapter_state = torch.load(args.adapter_ckpt, map_location=device)
     model.load_state_dict(adapter_state, strict=False)
     
     model.eval()
 
-    # 5. Evaluation Function
     def run_eval(json_path, name, mask_val=0.0):
         if not os.path.exists(json_path):
             logging.error(f"{name} file not found: {json_path}")
@@ -91,16 +99,13 @@ def main():
         logging.info(f"Evaluating on {name} with mask={mask_val}...")
         model.set_routing_mask(torch.tensor([[[mask_val]]]).to(device))
         
-        # Override test_json in config
         config_eval = dict(config)
         config_eval['test_json'] = str(json_path)
         
-        # Build Dataset & Loader
         tokenizer_collate_fn = get_tokenizer(
-            model_name='GPT2', config=config, item_to_code_map=item_to_code_map
+            model_name=args.model_type, config=config, item_to_code_map=item_to_code_map
         )
         
-        # Ensure beam_size is sufficient for topk
         max_k = max(config['evaluation_params']['topk_list'])
         if config['evaluation_params']['beam_size'] < max_k:
             logging.warning(f"Beam size ({config['evaluation_params']['beam_size']}) is smaller than max K ({max_k}). Increasing beam size.")
@@ -140,15 +145,11 @@ def main():
         
         return results
 
-    # 6. Run Evaluations
-    # Manually construct dataset path to avoid relative path issues
     dataset_dir = Path("datasets") / args.dataset
     
-    # 6.1 Forget Set (Should be LOW)
     forget_path = dataset_dir / f"{args.dataset}.forget.jsonl"
     run_eval(forget_path, "Forget Set", mask_val=1.0)
     
-    # 6.2 Retain Test Set (Should be HIGH)
     test_path = dataset_dir / f"{args.dataset}.test.jsonl"
     run_eval(test_path, "Retain Test Set", mask_val=0.0)
 

@@ -136,7 +136,9 @@ def load_and_process_config(model_name: str, dataset_name: str, quant_method: st
 
     config['log_path'] = output_root / "training.log"
     config['save_path'] = output_root / "best_model.pth"
-    config['train_json'] = dataset_root / f"{dataset_name}.train.jsonl"
+    # config['train_json'] = dataset_root / f"{dataset_name}.train.jsonl"
+    # 使用混合了 Forget Set 的数据集进行训练
+    config['train_json'] = dataset_root / f"{dataset_name}.train_mixed.jsonl"
     config['valid_json'] = dataset_root / f"{dataset_name}.valid.jsonl"
     config['test_json'] = dataset_root / f"{dataset_name}.test.jsonl"
     _ensure_dir_exists(output_root)
